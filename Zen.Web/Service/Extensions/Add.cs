@@ -1,10 +1,14 @@
 ﻿using System;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Session;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Newtonsoft.Json.Serialization;
+using Zen.Base;
+using Zen.Web.Convention;
+using Zen.Web.Model.State;
 
 namespace Zen.Web.Service.Extensions
 {
@@ -16,9 +20,18 @@ namespace Zen.Web.Service.Extensions
 
             configureOptions = configureOptions ?? (x => { });
 
+            var useAppCodeAsRoutePrefix = Current.Configuration?.Behavior?.UseAppCodeAsRoutePrefix == true;
+
             services
                 .AddSingleton<IHttpContextAccessor, HttpContextAccessor>()
-                .AddMvc()
+                .AddMvc(options =>
+                {
+                    if (useAppCodeAsRoutePrefix)
+                    {
+                        var appCode = App.Current.Configuration.Code.ToLower();
+                        options.UseCentralRoutePrefix(new RouteAttribute(appCode + "/"));
+                    }
+                })
                 .SetCompatibilityVersion(CompatibilityVersion.Version_2_2)
                 // Disable inference rules
                 // https://docs.microsoft.com/en-us/aspnet/core/web-api/?view=aspnetcore-2.2
@@ -43,6 +56,8 @@ namespace Zen.Web.Service.Extensions
             services.AddSpaStaticFiles(configuration => { configuration.RootPath = "ClientApp/dist"; });
 
             services.AddTransient<IEmailSender, EmailSender>();
+
+            services.AddTransient<ISessionStore, ZenDistributedSessionStore>();
 
             var builder = new ZenWebBuilder(services);
 

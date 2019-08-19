@@ -23,7 +23,7 @@ using Zen.Base.Module.Log;
 
 namespace Zen.Base.Module
 {
-    public abstract class Data<T> where T : Data<T>
+    public abstract partial class Data<T> where T : Data<T>
     {
         private static string _cacheKeyBase;
         private static readonly object _InitializationLock = new object();
@@ -190,8 +190,7 @@ namespace Zen.Base.Module
 
                     Info<T>.Settings.State.Step = "Determining CredentialSets to use";
                     Info<T>.Settings.CredentialSet =
-                        Factory.GetCredentialSetPerConnectionBundle(Info<T>.Settings.Bundle,
-                                                                    Info<T>.Configuration?.CredentialSetType);
+                        Factory.GetCredentialSetPerConnectionBundle(Info<T>.Settings.Bundle, Info<T>.Configuration?.CredentialSetType);
 
                     //if (Info<T>.Settings.CredentialSet != null)
                     //    Info<T>.Settings.Statistics["Settings.CredentialSet"] =
@@ -212,7 +211,7 @@ namespace Zen.Base.Module
 
                     foreach (var (key, value) in Info<T>.Settings.Statistics) Current.Log.KeyValuePair(key, value, Message.EContentType.StartupSequence);
 
-                    Current.Log.KeyValuePair(typeof(T).FullName, $"Ready | {Info<T>.Settings.EnvironmentCode} + {refType.GetType().Name} + {Info<T>.Settings.Adapter.ReferenceCollectionName}", Message.EContentType.StartupSequence);
+                    Events.AddLog($"Data<{typeof(T).Name}>", $"Ready | {Info<T>.Settings.EnvironmentCode} + {refType.GetType().Name} + {Info<T>.Settings.Adapter.ReferenceCollectionName}");
                 }
                 catch (Exception e)
                 {
@@ -243,36 +242,7 @@ namespace Zen.Base.Module
 
         public static T New() { return (T)Activator.CreateInstance(typeof(T)); }
 
-        private enum EMetadataScope
-        {
-            Collection
-        }
-
         #region State tools
-
-        public static class Info<T> where T : Data<T>
-        {
-            static Info() { _cacheKeyBase = typeof(T).FullName; }
-            public static Settings Settings => ClassRegistration[typeof(T)].Item1;
-            public static DataConfigAttribute Configuration => ClassRegistration[typeof(T)].Item2;
-            public static string CacheKey(string key = "") { return _cacheKeyBase + ":" + key; }
-
-            public static void TryFlushCachedCollection(Mutator mutator = null)
-            {
-                if (!(Configuration?.UseCaching == true && Current.Cache.OperationalStatus == EOperationalStatus.Operational)) return;
-
-                var collectionKey = mutator?.KeyPrefix + _cacheKeyBase;
-                Current.Cache.RemoveAll(collectionKey);
-            }
-
-            internal static void TryFlushCachedModel(T model, Mutator mutator = null)
-            {
-                if (!(Configuration?.UseCaching == true && Current.Cache.OperationalStatus == EOperationalStatus.Operational)) return;
-
-                var key = mutator?.KeyPrefix + model.GetDataKey();
-                Current.Cache.Remove(key);
-            }
-        }
 
         private static void ValidateState(EActionType? type = null)
         {
@@ -295,6 +265,19 @@ namespace Zen.Base.Module
         }
 
         #endregion
+
+        public static IEnumerable<T> GetByLocator(IEnumerable<string> locators, Mutator mutator = null)
+        {
+            var model = Where(i => locators.Contains((i as IDataLocator).Locator), mutator).ToList();
+            model.AfterGet();
+
+            return model;
+        }
+
+        private enum EMetadataScope
+        {
+            Collection
+        }
 
         #region Static references
 
@@ -330,7 +313,7 @@ namespace Zen.Base.Module
             if (refField != null) refField.SetValue(oRef, Convert.ChangeType(value, refField.FieldType));
             {
                 var refProp = GetType().GetProperty(Info<T>.Settings.KeyMemberName);
-                refProp.SetValue(oRef, Convert.ChangeType(value, refProp.PropertyType));
+                refProp?.SetValue(oRef, Convert.ChangeType(value, refProp.PropertyType));
             }
         }
 
@@ -339,7 +322,7 @@ namespace Zen.Base.Module
             var oRef = this;
             if (value.IsNumeric()) value = Convert.ToInt64(value);
             var refProp = GetType().GetProperty(Info<T>.Settings.DisplayMemberName);
-            refProp.SetValue(oRef, Convert.ChangeType(value, refProp.PropertyType));
+            refProp?.SetValue(oRef, Convert.ChangeType(value, refProp.PropertyType));
         }
 
         public string GetDataKey() { return GetDataKey(this); }
@@ -372,7 +355,7 @@ namespace Zen.Base.Module
 
         #region Static Data handlers
 
-        public static IEnumerable<T> All() { return All<T>(); }
+        public static IEnumerable<T> All() { return All<T>().AfterGet(); }
 
         public static IEnumerable<TU> All<TU>()
         {
@@ -380,16 +363,16 @@ namespace Zen.Base.Module
             return Info<T>.Settings.Adapter.Query<T, TU>();
         }
 
-        public static IEnumerable<T> Query(string statement) { return Query<T>(statement.ToModifier()); }
+        public static IEnumerable<T> Query(string statement) { return Query<T>(statement.ToModifier()).ToList().AfterGet(); }
 
-        public static IEnumerable<T> Query(Mutator mutator = null) { return Query<T>(mutator); }
+        public static IEnumerable<T> Query(Mutator mutator = null) { return Query<T>(mutator).AfterGet(); }
 
         public static IEnumerable<T> Where(Expression<Func<T, bool>> predicate, Mutator mutator = null)
         {
             ValidateState(EActionType.Read);
             mutator = Info<T>.Settings.GetInstancedModifier<T>().Value.BeforeQuery(EActionType.Read, mutator) ?? mutator;
 
-            return Info<T>.Settings.Adapter.Where(predicate, mutator).ToList();
+            return Info<T>.Settings.Adapter.Where(predicate, mutator).AfterGet();
         }
 
         public static IEnumerable<TU> Query<TU>(string statement) { return Query<TU>(statement.ToModifier()); }
@@ -664,7 +647,17 @@ namespace Zen.Base.Module
             }
         }
 
-        internal static T FetchModel(string key, Mutator mutator = null) { return Info<T>.Settings.Adapter.Get<T>(key, mutator); }
+        internal static T FetchModel(string key, Mutator mutator = null)
+        {
+            var model = Info<T>.Settings.Adapter.Get<T>(key, mutator);
+            model?.AfterGet();
+
+            var fullKey = mutator?.KeyPrefix + model?.GetDataKey();
+
+            CacheFactory.StoreModel(fullKey, model);
+
+            return model;
+        }
 
         internal static Dictionary<string, T> FetchSet(IEnumerable<string> keys, bool ignoreCache = false, Mutator mutator = null)
         {
@@ -685,6 +678,9 @@ namespace Zen.Base.Module
 
             //Do a hard query on the missing keys.
             var cachedSet = Info<T>.Settings.Adapter.Get<T>(missedKeys, mutator).ToList();
+
+            // Post-fetch hook
+            foreach (var model in cachedSet) model.AfterGet();
 
             // Now we fill the map with the missing models that we sucessfully fetched.
             foreach (var model in cachedSet.Where(model => model != null))
@@ -827,6 +823,8 @@ namespace Zen.Base.Module
 
         public virtual void AfterRemove() { }
 
+        public virtual void AfterGet() { }
+
         public virtual Mutator BeforeQuery(EActionType read, Mutator mutator) { return null; }
 
         public virtual Mutator BeforeCount(EActionType read, Mutator mutator) { return null; }
@@ -839,20 +837,21 @@ namespace Zen.Base.Module
         {
             // ReSharper disable once SuspiciousTypeConversion.Global
 
-            return Where(i => (i as IDataLocator).Locator == locator, mutator).FirstOrDefault();
+            var model = Where(i => (i as IDataLocator).Locator == locator, mutator).FirstOrDefault();
+            model?.AfterGet();
+
+            return model;
         }
 
         public static T GetByCode(string code, Mutator mutator = null)
         {
             // ReSharper disable once SuspiciousTypeConversion.Global
-            return Where(i => (i as IDataCode).Code == code, mutator).FirstOrDefault();
+            var model = Where(i => (i as IDataCode).Code == code, mutator).FirstOrDefault();
+            model?.AfterGet();
+
+            return model;
         }
 
         #endregion
-
-        public static IEnumerable<T> GetByLocator(IEnumerable<string> locators, Mutator mutator = null)
-        {
-            return Where(i => locators.Contains((i as IDataLocator).Locator), mutator);
-        }
     }
 }
