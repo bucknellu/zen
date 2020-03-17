@@ -1,0 +1,35 @@
+name: Publish NuGet packages 
+
+on:
+  push:
+    branches:
+      - master # Default release branch
+
+jobs:
+  warmup:
+    name: Warm-Up
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        zen-project: [Base,App,Storage,Media,Web,Module.Cache.Redis,Module.Data.LiteDB,Module.Data.MongoDB]
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Setup dotnet
+        uses: actions/setup-dotnet@v1
+
+      - name: Nerdbank.GitVersioning
+        uses: AArnott/nbgv@v0.3
+        with:
+          setAllVars: true
+
+      - name: Publish Zen.${{matrix.zen-project}} NuGet
+        uses: rohith/publish-nuget@v2.2.0
+        continue-on-error: true
+        with:
+          PROJECT_FILE_PATH: Zen.${{matrix.zen-project}}/Zen.${{matrix.zen-project}}.csproj
+          VERSION_STATIC: ${{env.NBGV_Version}}
+          NUGET_KEY: ${{secrets.NUGET_API_KEY}}

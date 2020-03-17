@@ -9,12 +9,14 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Zen.Base;
+using Zen.Base.Extension;
+using Zen.Base.Module.Log;
 
 namespace Zen.Web.Service.Extensions
 {
     public static class Use
     {
-        public static void UseZenWeb(this IApplicationBuilder app, Action<IZenWebBuilder> configuration = null, IHostingEnvironment env = null)
+        public static void UseZenWeb(this IApplicationBuilder app, Action<IZenWebBuilder> configuration = null, IHostEnvironment env = null)
         {
             configuration = configuration ?? (x => { });
 
@@ -24,9 +26,11 @@ namespace Zen.Web.Service.Extensions
 
             var builder = new ZenWebBuilder(app, options);
 
-            var useAppCodeAsRoutePrefix = Current.Configuration?.Behavior?.UseAppCodeAsRoutePrefix == true;
+            var appCode = App.Current.Configuration?.Code?.ToLower() ?? Zen.Base.Host.ApplicationAssemblyName;
+            var usePrefix = Current.Configuration?.RoutePrefix != null || Current.Configuration?.Behavior?.UseAppCodeAsRoutePrefix == true;
+            var prefix = Current.Configuration?.RoutePrefix ?? (Current.Configuration?.Behavior?.UseAppCodeAsRoutePrefix == true ? appCode : null);
 
-            if (!useAppCodeAsRoutePrefix)
+            if (!usePrefix)
             {
                 // Default behavior: nothing to see here.
 
@@ -37,7 +41,9 @@ namespace Zen.Web.Service.Extensions
             {
                 // The App code will be used as prefix for all requests, so let's move the root:
 
-                var rootPrefix = "/" + App.Current.Configuration.Code.ToLower(); // e.g. "/appcode"
+                var rootPrefix = "/" + prefix; // e.g. "/appcode"
+
+                Base.Host.Variables[Host.Keys.WebRootPrefix] = rootPrefix;
 
                 Events.AddLog("Web.RootPrefix", rootPrefix);
 
@@ -53,7 +59,7 @@ namespace Zen.Web.Service.Extensions
 
                 app.UseDefaultFiles(fOptions); // This will allow default (index.html, etc.) requests on the new mapping
 
-                app.UseStaticFiles(new StaticFileOptions { FileProvider = fileProvider, RequestPath = rootPrefix });
+                app.UseStaticFiles(new StaticFileOptions {FileProvider = fileProvider, RequestPath = rootPrefix});
 
                 app.UseRouter(r =>
                 {
@@ -62,16 +68,30 @@ namespace Zen.Web.Service.Extensions
                         var destination = "." + rootPrefix;
 
                         if (Current.Configuration?.Development?.QualifiedServerName != null)
-                        {
                             if (context.Request.Host.Host != Current.Configuration?.Development?.QualifiedServerName)
                             {
-                                var destinationHost = context.Request.Host.Port.HasValue ? 
-                                    new HostString(Current.Configuration.Development.QualifiedServerName, context.Request.Host.Port.Value) : 
-                                    new HostString(Current.Configuration.DevelopmentQualifiedServerName);
+                                var sourcePort = context.Request.Host.Port;
 
-                                destination = "//" + destinationHost.ToString() + rootPrefix;
+                                var targetProtocol = "";
+
+                                if (Base.Host.IsDevelopment)
+                                {
+                                    var httpPort = Base.Host.Variables.GetValue(Host.Keys.WebHttpPort).ToType<int, object>();
+                                    var httpsPort = Base.Host.Variables.GetValue(Host.Keys.WebHttpsPort).ToType<int, object>();
+
+                                    if (sourcePort == httpPort)
+                                    {
+                                        sourcePort = httpsPort;
+                                        targetProtocol = "https:";
+                                    }
+                                }
+
+                                var destinationHost = context.Request.Host.Port.HasValue ? new HostString(Current.Configuration.Development.QualifiedServerName, sourcePort.Value) : new HostString(Current.Configuration.DevelopmentQualifiedServerName);
+
+                                destination = $"{targetProtocol}//" + destinationHost.ToString() + rootPrefix;
                             }
-                        }
+
+                        Log.KeyValuePair(App.Current.Orchestrator.Application.ToString(), $"Redirect: {destination}", Message.EContentType.StartupSequence);
 
                         context.Response.Redirect(destination, false);
                         return Task.FromResult(0);
@@ -79,9 +99,18 @@ namespace Zen.Web.Service.Extensions
                 });
             }
 
-            app
-                //.UseHttpsRedirection()
-                .UseMvc();
+
+            app.UseRouting();
+
+            app.UseEndpoints(endpoints =>
+            {
+                endpoints.MapControllers();
+            });
+
+
+            //app
+            ////    //.UseHttpsRedirection()
+            //    .UseMvc();
 
             if (options.UseSpa)
             {

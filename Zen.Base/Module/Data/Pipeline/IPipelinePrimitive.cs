@@ -1,9 +1,11 @@
 ﻿using System.Collections.Generic;
+using Microsoft.Extensions.Primitives;
 
 namespace Zen.Base.Module.Data.Pipeline
 {
     public interface IPipelinePrimitive
     {
-        Dictionary<string, object> Headers<T>() where T : Data<T>;
+        string PipelineName { get; }
+        Dictionary<string, object> Headers<T>(ref DataAccessControl accessControl, Dictionary<string, StringValues> requestHeaders, EActionScope scope, T model) where T : Data<T>;
     }
 }

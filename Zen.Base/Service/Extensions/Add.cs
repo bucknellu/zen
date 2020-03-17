@@ -1,7 +1,9 @@
 ﻿using System;
 using Microsoft.Extensions.DependencyInjection;
 using Zen.Base.Maintenance;
+using Zen.Base.Module.Log;
 using Zen.Base.Module.Service;
+using Zen.Base.Process.Core.Service.Sample;
 
 namespace Zen.Base.Service.Extensions
 {
@@ -15,15 +17,16 @@ namespace Zen.Base.Service.Extensions
 
             if (services == null) throw new ArgumentNullException(nameof(services));
 
-            // services.AddZenIdentityProvider<User>();
-
             Current.State = Status.EState.Starting;
 
             var builder = new ZenBuilder(services);
 
             if (configureOptions != null) services.Configure(configureOptions);
 
-            services.AddHostedService<Maintenance.MaintenanceService>();
+            services.AddHostedService<ApplicationLifetimeHostedService>();
+            services.AddHostedService<MaintenanceService>();
+
+            Log.KeyValuePair("ZenBuilder", $"{services.Count} services registered", Message.EContentType.StartupSequence);
 
             return builder;
         }

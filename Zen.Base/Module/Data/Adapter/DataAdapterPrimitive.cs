@@ -9,7 +9,6 @@ namespace Zen.Base.Module.Data.Adapter
     public abstract class DataAdapterPrimitive : IInterceptor
     {
         public string ReferenceCollectionName;
-
         public IConnectionBundlePrimitive SourceBundle;
 
         #region Initialization
@@ -25,7 +24,7 @@ namespace Zen.Base.Module.Data.Adapter
 
         public virtual void SetConnectionString<T>() where T : Data<T>
         {
-            var settings = Data<T>.Info<T>.Settings;
+            var settings = Info<T>.Settings;
 
             var envCode = settings.EnvironmentCode;
 
@@ -44,12 +43,12 @@ namespace Zen.Base.Module.Data.Adapter
             // If it fails to decrypt, no biggie; It may be plain-text. ignore and continue.
             settings.CredentialsString = Current.Encryption.TryDecrypt(settings.CredentialsString);
 
-            if (string.IsNullOrEmpty(settings.ConnectionString)) Current.Log.KeyValuePair(typeof(T).FullName, "Connection Cypher Key not set", Message.EContentType.Warning);
+            // if (string.IsNullOrEmpty(settings.ConnectionString)) Current.Log.KeyValuePair(typeof(T).FullName, "Connection Cypher Key not set", Message.EContentType.Warning);
 
             if (!settings.CredentialCypherKeys.ContainsKey(envCode)) return;
 
             //Handling credentials
-            if (settings.ConnectionString.IndexOf("{credentials}", StringComparison.Ordinal) == -1) Current.Log.Warn<T>("Credentials set, but no placeholder found on connection string");
+            // if (settings.ConnectionString.IndexOf("{credentials}", StringComparison.Ordinal) == -1) Current.Log.Warn<T>("Credentials set, but no placeholder found on connection string");
 
             settings.CredentialsString = settings.CredentialCypherKeys[envCode];
 
@@ -88,6 +87,9 @@ namespace Zen.Base.Module.Data.Adapter
         public abstract IEnumerable<T> BulkUpsert<T>(IEnumerable<T> models, Mutator mutator = null) where T : Data<T>;
         public abstract void BulkRemove<T>(IEnumerable<string> keys, Mutator mutator = null) where T : Data<T>;
         public abstract void BulkRemove<T>(IEnumerable<T> models, Mutator mutator = null) where T : Data<T>;
+
+        public abstract void DropSet<T>(string setName) where T : Data<T>;
+        public abstract void CopySet<T>(string sourceSetIdentifier, string targetSetIdentifier, bool flushDestination = false) where T : Data<T>;
 
         #endregion
     }

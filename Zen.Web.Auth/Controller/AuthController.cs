@@ -10,16 +10,15 @@ using Zen.Base.Extension;
 
 namespace Zen.Web.Auth.Controller
 {
-    [Route("framework/auth"), ApiController]
-    public class AuthController : Microsoft.AspNetCore.Mvc.Controller
+    [Route("framework/auth")]
+    public class AuthController : ControllerBase
     {
         [Authorize, HttpGet("signin")]
         public object SignIn()
         {
             var person = App.Current.Orchestrator.SigninPersonByIdentity(User.Identity);
 
-            if (Request.Query.ContainsKey("sourceUrl"))
-                return Redirect(Request.Query["sourceUrl"]);
+            if (Request.Query.ContainsKey("sourceUrl")) return Redirect(Request.Query["sourceUrl"]);
 
             Base.Current.Log.Add(person.ToJson());
 
@@ -31,7 +30,7 @@ namespace Zen.Web.Auth.Controller
         {
             // Call the SignOut endpoint from the API, if in clientmode, or its own.
 
-            Current.Context.Session.Clear();
+            Web.Current.Context.Session.Clear();
 
             var url = App.Current.Orchestrator.GetApiUri() + "/framework/auth/signout";
             return new RedirectResult(url);

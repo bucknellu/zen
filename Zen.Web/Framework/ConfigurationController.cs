@@ -1,12 +1,20 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Zen.App.Model.Orchestration;
+using Zen.App.Core.Application;
 
 namespace Zen.Web.Framework
 {
-    [Route("framework/configuration"), ApiController]
-    public class ConfigurationController : Controller
+    [Route("framework/configuration")]
+    public class ConfigurationController : ControllerBase
     {
         [HttpGet("groups")]
-        public object GetGroups() { return App.Current.Orchestrator.Application?.ToRepresentation(); }
+        public ApplicationRepresentation GetGroups() { return App.Current.Orchestrator.Application?.ToRepresentation(); }
+
+        [HttpPost("groups")]
+        public ApplicationRepresentation SetGroups([FromBody] ApplicationRepresentation model)
+        {
+            App.Current.Orchestrator.Application.FromRepresentation(model);
+
+            return App.Current.Orchestrator.Application?.ToRepresentation();
+        }
     }
 }

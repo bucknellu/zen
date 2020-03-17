@@ -3,13 +3,14 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Zen.Base.Module.Log;
 using Zen.Base.Module.Service;
 
 namespace Zen.Base.Service.Extensions
 {
     public static class Use
     {
-        public static IApplicationBuilder UseZen(this IApplicationBuilder app, Action<IZenBuilder> configuration = null, IHostingEnvironment env = null)
+        public static IApplicationBuilder UseZen(this IApplicationBuilder app, Action<IZenBuilder> configuration = null, IHostEnvironment env = null)
         {
             configuration = configuration ?? (x => { });
 
@@ -27,9 +28,7 @@ namespace Zen.Base.Service.Extensions
 
             Current.State = Status.EState.Running;
 
-            Current.Log.Add(Current.State.ToString());
-
-
+            Current.Log.Add(Current.State.ToString(), Message.EContentType.StartupSequence, Host.ApplicationAssemblyName);
 
             return app;
         }

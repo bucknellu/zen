@@ -10,6 +10,7 @@ using System.Linq.Expressions;
 using System.Net;
 using System.Reflection;
 using System.Runtime.Serialization.Formatters.Binary;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Web;
 using System.Xml;
@@ -27,6 +28,18 @@ namespace Zen.Base.Extension
         public static void ThreadSafeAdd<T>(this List<T> source, T obj)
         {
             lock (OLock) { source.Add(obj); }
+        }
+
+        public static string MergeJson(this string source, string extra)
+        {
+            var sourceObject = JObject.Parse(source);
+            var extraObject = JObject.Parse(extra);
+
+            sourceObject.Merge(extraObject, new JsonMergeSettings { MergeArrayHandling = MergeArrayHandling.Union });
+
+            source = sourceObject.ToString(Formatting.None);
+
+            return source;
         }
 
         public static string ToXml(this object obj)
@@ -334,7 +347,69 @@ namespace Zen.Base.Extension
             return expando;
         }
 
-        public static string ToJson(this object obj, int pLevels = 0, bool ignoreEmptyStructures = false)
+        public static List<X509Certificate2> ToList(this X509Certificate2Collection source) { return source.OfType<X509Certificate2>().ToList(); }
+
+        public static List<X509Certificate2> BySubject(this X509Store source, string targetSubject)
+        {
+            source.Open(OpenFlags.ReadOnly);
+            var target = source.Certificates.ToList().Where(i => i?.SubjectName.Name != null && i.SubjectName.Name.Contains(targetSubject)).ToList();
+            source.Close();
+            return target;
+        }
+
+        public static void CopyStreamTo(this Stream input, Stream output)
+        {
+            var buffer = new byte[8 * 1024];
+            int len;
+            while ((len = input.Read(buffer, 0, buffer.Length)) > 0) output.Write(buffer, 0, len);
+        }
+
+        public static bool IsJson(this string strInput)
+        {
+            // https://stackoverflow.com/a/14977915/1845714
+
+            strInput = strInput.Trim();
+            if ((!strInput.StartsWith("{") || !strInput.EndsWith("}")) && (!strInput.StartsWith("[") || !strInput.EndsWith("]"))) return false;
+
+            try
+            {
+                JToken.Parse(strInput);
+                return true;
+            }
+            catch (JsonReaderException jex)
+            {
+                //Exception in parsing json
+                Console.WriteLine(jex.Message);
+                return false;
+            }
+            catch (Exception ex) //some other exception
+            {
+                Console.WriteLine(ex.ToString());
+                return false;
+            }
+        }
+
+        public static string XmlToJson(this string source)
+        {
+            var doc = new XmlDocument();
+            doc.LoadXml(source);
+
+            var json = JsonConvert.SerializeXmlNode(doc);
+
+            return json;
+        }
+
+        public static List<T> ToList<T>(this IEnumerator<T> e)
+        {
+            var list = new List<T>();
+            while (e.MoveNext())
+            {
+                list.Add(e.Current);
+            }
+            return list;
+        }
+
+        public static string ToJson(this object obj, int pLevels = 0, bool ignoreEmptyStructures = false, Formatting format = Formatting.None)
         {
             //var s = new JavaScriptSerializer {MaxJsonLength = 50000000};
             //if (pLevels != 0) s.RecursionLimit = pLevels;
@@ -348,7 +423,7 @@ namespace Zen.Base.Extension
                 settings.DefaultValueHandling = DefaultValueHandling.Ignore;
             }
 
-            try { return JsonConvert.SerializeObject(obj, Formatting.None, settings); } catch { return null; }
+            try { return JsonConvert.SerializeObject(obj, format, settings); } catch { return null; }
         }
 
         public static object ToJObject(this object src) { return JObject.Parse(src.ToJson()); }
@@ -380,7 +455,7 @@ namespace Zen.Base.Extension
             return ret;
         }
 
-        public static T FromJson<T>(this string obj) { return obj == null ? default(T) : JsonConvert.DeserializeObject<T>(obj); }
+        public static T FromJson<T>(this string obj) { return obj == null ? default : JsonConvert.DeserializeObject<T>(obj); }
 
         public static object FromJson(this string obj, Type destinyFormat, bool asList)
         {
@@ -396,6 +471,18 @@ namespace Zen.Base.Extension
 
             if (obj == null) return null;
             return JsonConvert.DeserializeObject(obj, type);
+        }
+
+        public static dynamic ToObject(this Dictionary<string, object> source)
+        {
+            var eo = new ExpandoObject();
+            var eoColl = (ICollection<KeyValuePair<string, object>>)eo;
+
+            foreach (var kvp in source) eoColl.Add(kvp);
+
+            dynamic eoDynamic = eo;
+
+            return eoDynamic;
         }
 
         public static byte[] ToByteArray<T>(this T obj)
@@ -415,7 +502,7 @@ namespace Zen.Base.Extension
         {
             // https://stackoverflow.com/a/33022788/1845714
 
-            if (data == null) return default(T);
+            if (data == null) return default;
             var bf = new BinaryFormatter();
             using (var ms = new MemoryStream(data))
             {

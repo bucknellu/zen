@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Reflection;
 using System.Threading;
+using Microsoft.Extensions.Hosting;
 using Zen.Base.Extension;
 using Zen.Base.Module.Log;
 using Zen.Base.Module.Service;
@@ -48,10 +49,12 @@ namespace Zen.Base
         {
             var divider = new string('_', 130);
 
+            Current.Log.Debug(divider);
+            Current.Log.Debug("");
             Current.Log.Info(@"Zen " + Assembly.GetCallingAssembly().GetName().Version);
             Current.Log.Debug(divider);
             Current.Log.Debug("");
-            Current.Log.Debug("Providers:");
+            Current.Log.Add("Providers:");
 
             Current.Log.KeyValuePair("Cache", Current.Cache == null ? "(none)" : Current.Cache.ToString());
             Current.Log.KeyValuePair("Environment", Current.Environment == null ? "(none)" : Current.Environment.ToString());
@@ -62,11 +65,12 @@ namespace Zen.Base
             Current.Log.KeyValuePair("Base Directory", Host.BaseDirectory);
             Current.Log.KeyValuePair("Data Directory", Host.DataDirectory);
 
-            Current.Log.Debug("State:");
+            Current.Log.Add("State:");
 
             foreach (var kvp in BootLog) Current.Log.KeyValuePair(kvp.Key, kvp.Value);
 
             Current.Log.Debug(divider);
+            Current.Log.Debug("");
         }
 
         private static void ExecuteShutdownSequenceActions()
@@ -77,17 +81,17 @@ namespace Zen.Base
 
         public static void End(string pReason = "(None)")
         {
-            Current.Log.Add("Stack shutdown initiated: " + pReason, Message.EContentType.ShutdownSequence);
+            Current.Log.KeyValuePair("Stack shutdown initiated", pReason, Message.EContentType.ShutdownSequence);
 
-            if (Status.State == Status.EState.Shuttingdown) return;
+            if (Status.State == Status.EState.ShuttingDown) return;
 
-            Status.SetState(Status.EState.Shuttingdown);
+            Status.SetState(Status.EState.ShuttingDown);
 
             Instances.ServiceData.EndTimeStamp = DateTime.Now;
 
-            Current.Log.Debug($"    Session Start : {Instances.ServiceData.StartTimeStamp}");
-            Current.Log.Debug($"      Session End : {Instances.ServiceData.EndTimeStamp}");
-            Current.Log.Debug($" Session lifetime : {Instances.ServiceData.UpTime}");
+            Current.Log.KeyValuePair("Session Start", Instances.ServiceData.StartTimeStamp.ToString(), Message.EContentType.ShutdownSequence);
+            Current.Log.KeyValuePair("Session End", Instances.ServiceData.EndTimeStamp.ToString(), Message.EContentType.ShutdownSequence);
+            Current.Log.KeyValuePair("Session lifetime", Instances.ServiceData.UpTime.ToString(), Message.EContentType.ShutdownSequence);
             Current.Log.Add(@"  _|\_/|  ZZZzzz", Message.EContentType.Info);
             Current.Log.Add(@"c(_(-.-)", Message.EContentType.Info);
 
