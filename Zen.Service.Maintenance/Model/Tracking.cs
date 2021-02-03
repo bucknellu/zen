@@ -2,11 +2,12 @@
 using System.ComponentModel.DataAnnotations;
 using Zen.Base.Module;
 using Zen.Base.Module.Data;
+using Zen.Base.Module.Data.CommonAttributes;
 
 namespace Zen.Service.Maintenance.Model
 {
     [DataConfig(UseCaching = false)]
-    public class Tracking : Data<Tracking>
+    public class Tracking : Data<Tracking>, IDataId
     {
         [Key]
         public string Id { get; set; } = Guid.NewGuid().ToString();
@@ -18,7 +19,7 @@ namespace Zen.Service.Maintenance.Model
         public bool Success { get; set; }
         public bool RunOnce { get; set; }
         public string LastMessage { get; set; }
-        public TimeSpan Elapsed { get; set; }
+        public string Elapsed { get; set; }
         public string InstanceIdentifier { get; set; }
 
         public bool CanRun()

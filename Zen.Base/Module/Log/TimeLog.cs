@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.CompilerServices;
 
 namespace Zen.Base.Module.Log
 {
-    public class TimeLog : Dictionary<TimeSpan, string>, IDisposable
+    public class TimeLog : List<KeyValuePair<string, string>>, IDisposable
     {
         private readonly Stopwatch _s = new Stopwatch();
 
@@ -23,16 +24,18 @@ namespace Zen.Base.Module.Log
         {
             if (Host.IsDevelopment) _callerMemberName = $"[{callerMemberName}] ";
 
-            Add(_s.Elapsed, message);
+            Add(new KeyValuePair<string, string>(_s.Elapsed.ToString("G"), message));
             CurrentMessage = message;
             return message;
         }
+
+        public string LastMessage() => this.LastOrDefault().Value;
 
         public TimeLog Start(string message = null, bool verbose = true)
         {
             _s.Start();
             if (verbose)
-                if (message!= null)
+                if (message != null)
                     Log(message);
 
             return this;
@@ -45,7 +48,7 @@ namespace Zen.Base.Module.Log
             _s.Stop();
 
             if (!dumpInfo) return;
-            foreach (var entries in this) Current.Log.Info($"{_callerMemberName}{entries.Key:\\:hh\\:mm\\:ss\\.fff} {entries.Value}");
+            foreach (var entries in this) Current.Log.Info($"{_callerMemberName}{entries.Key} {entries.Value}");
             Current.Log.Info($"{_s.Elapsed:\\:hh\\:mm\\:ss\\.fff} [Total elapsed time]");
         }
     }

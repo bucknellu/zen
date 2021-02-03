@@ -14,7 +14,7 @@
     <PackageProjectUrl>https://github.com/lbotinelly/zen</PackageProjectUrl>
     <RepositoryUrl>https://github.com/lbotinelly/zen</RepositoryUrl>
     <PackageIconUrl></PackageIconUrl>
-    <LangVersion>7.2</LangVersion>
+    <LangVersion>latest</LangVersion>
     <PackageTags>middleware orm dotnet core storage</PackageTags>
     <PackageReleaseNotes>Initial release</PackageReleaseNotes>
     <Copyright>Copyright (c) 2020 Zen Development Team</Copyright>
@@ -39,6 +39,10 @@
       <Pack>True</Pack>
       <PackagePath></PackagePath>
     </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Update="Nerdbank.GitVersioning" Version="3.3.37" />
   </ItemGroup>
 
 </Project>

@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
-using Microsoft.Extensions.Hosting;
 using Zen.Base.Extension;
 using Zen.Base.Module.Log;
 using Zen.Base.Module.Service;
@@ -19,7 +19,10 @@ namespace Zen.Base
         private static bool _doShutdown = true;
         private static Thread _workerThread;
 
-        private static void CurrentDomain_ProcessExit(object sender, EventArgs e) { End("Process Exit"); }
+        private static void CurrentDomain_ProcessExit(object sender, EventArgs e)
+        {
+            End("Process Exit");
+        }
 
         public static void AddLog(string key, string value)
         {
@@ -36,7 +39,14 @@ namespace Zen.Base
             Instances.ServiceData.StartTimeStamp = DateTime.Now;
 
             foreach (var ba in StartupSequence.Actions)
-                try { ba(); } catch (Exception e) { Current.Log.Add(e); }
+                try
+                {
+                    ba();
+                }
+                catch (Exception e)
+                {
+                    Current.Log.Add(e);
+                }
 
             AppDomain.CurrentDomain.ProcessExit += CurrentDomain_ProcessExit;
 
@@ -56,11 +66,13 @@ namespace Zen.Base
             Current.Log.Debug("");
             Current.Log.Add("Providers:");
 
-            Current.Log.KeyValuePair("Cache", Current.Cache == null ? "(none)" : Current.Cache.ToString());
-            Current.Log.KeyValuePair("Environment", Current.Environment == null ? "(none)" : Current.Environment.ToString());
-            Current.Log.KeyValuePair("Log", Current.Log == null ? "(none)" : Current.Log.ToString());
-            Current.Log.KeyValuePair("Encryption", Current.Encryption == null ? "(none)" : Current.Encryption.ToString());
-            Current.Log.KeyValuePair("Global BundleType", Current.GlobalConnectionBundleType == null ? "(none)" : Current.GlobalConnectionBundleType.ToString());
+            var providersKeys = Status.Providers.ToList();
+
+            foreach (var key in providersKeys)
+            {
+                var svc = key.Service();
+                Current.Log.KeyValuePair(key.Name, $"{svc.GetType().Name} | {svc.GetState()}");
+            }
 
             Current.Log.KeyValuePair("Base Directory", Host.BaseDirectory);
             Current.Log.KeyValuePair("Data Directory", Host.DataDirectory);
@@ -76,7 +88,14 @@ namespace Zen.Base
         private static void ExecuteShutdownSequenceActions()
         {
             foreach (var sa in ShutdownSequence.Actions)
-                try { sa(); } catch (Exception e) { Current.Log.Add(e); }
+                try
+                {
+                    sa();
+                }
+                catch (Exception e)
+                {
+                    Current.Log.Add(e);
+                }
         }
 
         public static void End(string pReason = "(None)")
@@ -89,9 +108,12 @@ namespace Zen.Base
 
             Instances.ServiceData.EndTimeStamp = DateTime.Now;
 
-            Current.Log.KeyValuePair("Session Start", Instances.ServiceData.StartTimeStamp.ToString(), Message.EContentType.ShutdownSequence);
-            Current.Log.KeyValuePair("Session End", Instances.ServiceData.EndTimeStamp.ToString(), Message.EContentType.ShutdownSequence);
-            Current.Log.KeyValuePair("Session lifetime", Instances.ServiceData.UpTime.ToString(), Message.EContentType.ShutdownSequence);
+            Current.Log.KeyValuePair("Session Start", Instances.ServiceData.StartTimeStamp.ToString(),
+                Message.EContentType.ShutdownSequence);
+            Current.Log.KeyValuePair("Session End", Instances.ServiceData.EndTimeStamp.ToString(),
+                Message.EContentType.ShutdownSequence);
+            Current.Log.KeyValuePair("Session lifetime", Instances.ServiceData.UpTime.ToString(),
+                Message.EContentType.ShutdownSequence);
             Current.Log.Add(@"  _|\_/|  ZZZzzz", Message.EContentType.Info);
             Current.Log.Add(@"c(_(-.-)", Message.EContentType.Info);
 
@@ -99,14 +121,20 @@ namespace Zen.Base
 
             //try { MediaTypeNames.Application.Exit(); }
             //catch { }
-            try { Environment.Exit(0); } catch { }
+            try
+            {
+                Environment.Exit(0);
+            }
+            catch
+            {
+            }
         }
 
         public static void ScheduleShutdown(int seconds = 30)
         {
             _doShutdown = true;
 
-            if (_workerThread!= null) return;
+            if (_workerThread != null) return;
 
             _workerThread = new Thread(() => Shutdown(seconds)) {IsBackground = false};
             _workerThread.Start();

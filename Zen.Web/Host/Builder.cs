@@ -4,8 +4,12 @@ using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Zen.Base;
 using Zen.Base.Extension;
+using Zen.Base.Module.Service;
+using Zen.Web.Common;
 
 namespace Zen.Web.Host
 {
@@ -36,30 +40,49 @@ namespace Zen.Web.Host
             {
                 // Pick up certificate from local Store:
 
-                var hostCertificate = GetCertificate();
-
-                var host = new WebHostBuilder() // Pretty standard pipeline,
+                var hostBuilder = new WebHostBuilder() // Pretty standard pipeline,
                     .UseContentRoot(Directory.GetCurrentDirectory())
-                    .UseKestrel()
+                    .ConfigureLogging(logging =>
+                    {
+                        logging
+                            .AddFilter("Microsoft", LogLevel.Warning)
+                            .AddFilter("System", LogLevel.Warning)
+                            .AddFilter("LoggingConsoleApp.Program", LogLevel.Debug)
+                            .ClearProviders()
+                            .AddConsole()
+                            .AddEventLog();
+                    })
+                    .UseKestrel(k =>
+                    {
+
+                        var injectors = IoC.GetClassesByInterface<IKestrelConfigurationInjector>().CreateInstances<IKestrelConfigurationInjector>().ToList();
+                        foreach (var injector in injectors) injector.Handle(k);
+                    })
                     .UseStartup<T>()
                     .ConfigureKestrel((context, options) =>
                     {
                         // We'll map to 0.0.0.0 in order to allow inbound connections from all adapters.
                         var localAddress = IPAddress.Parse("0.0.0.0");
 
-                        var httpPort = Base.Host.Variables.Get(Keys.WebHttpPort, Defaults.WebHttpPort);
-                        var httpsPort = Base.Host.Variables.Get(Keys.WebHttpsPort, Defaults.WebHttpPort);
+                        var currentEnv = Current.ZenWebOrchestrator.Options.GetCurrentEnvironment();
+
+                        var httpPort = Base.Host.Variables.Get(Keys.WebHttpPort, currentEnv.HttpPort);
+                        var httpsPort = Base.Host.Variables.Get(Keys.WebHttpsPort, currentEnv.HttpsPort);
 
                         options.Listen(localAddress, httpPort);
 
+                        var hostCertificate = GetCertificate();
+
                         // Only offer HTTPS if we manage to pinpoint a development time self-signed certificate, be it custom or just the default dev cert created by VS.
                         if (hostCertificate == null) return;
-                        options.Listen(localAddress, httpsPort, listenOptions => { listenOptions.UseHttps(hostCertificate); });
-                    })
-                    .Build();
 
-                if (hostCertificate != null) // Log so we know what's going on.
-                    Base.Current.Log.KeyValuePair("Certificate", $"{hostCertificate.Thumbprint} | {hostCertificate.FriendlyName}");
+                        Base.Current.Log.KeyValuePair("Certificate", $"{hostCertificate.Thumbprint} | {hostCertificate.FriendlyName}");
+
+                        options.Listen(localAddress, httpsPort,
+                            listenOptions => { listenOptions.UseHttps(hostCertificate); });
+                    });
+
+                var host = hostBuilder.Build();
 
                 host.Run();
                 return;
@@ -75,7 +98,7 @@ namespace Zen.Web.Host
 
             if (Base.Host.IsDevelopment)
             {
-                var targetSubject = Current.Configuration?.Development?.CertificateSubject ?? "localhost";
+                var targetSubject = Current.ZenWebOrchestrator.Options?.Development?.CertificateSubject ?? "localhost";
 
                 targetCertificate = new X509Store(StoreName.Root).BySubject(targetSubject).FirstOrDefault() ??
                                     new X509Store(StoreName.My).BySubject(targetSubject).FirstOrDefault() ??
@@ -84,10 +107,13 @@ namespace Zen.Web.Host
 
             if (!Base.Host.IsProduction) return targetCertificate;
 
-            var certPath = $"{Base.Host.DataDirectory}{Path.DirectorySeparatorChar}certificate{Path.DirectorySeparatorChar}";
+            var certPath =
+                $"{Base.Host.DataDirectory}{Path.DirectorySeparatorChar}certificate{Path.DirectorySeparatorChar}";
 
             if (!Directory.Exists(certPath))
+            {
                 Log.Warn($"No physical certificate storage [{certPath}]");
+            }
             else
             {
                 var certFile = Directory.GetFiles(certPath).FirstOrDefault();

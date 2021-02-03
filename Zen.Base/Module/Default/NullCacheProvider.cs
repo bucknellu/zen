@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Zen.Base.Common;
 using Zen.Base.Module.Cache;
 
@@ -8,34 +7,25 @@ namespace Zen.Base.Module.Default
     [Priority(Level = -2)]
     public class NullCacheProvider : ICacheProvider
     {
-        public NullCacheProvider() { OperationalStatus = EOperationalStatus.NonOperational; }
-
-        public string this[string key, string oSet, int cacheTimeOutSeconds] { get => null; set { } }
-
-        public Dictionary<string, ICacheConfiguration> EnvironmentConfiguration { get; set; }
-
-        public string ServerName { get; private set; }
-        public EOperationalStatus OperationalStatus { get; set; }
-
-        public IEnumerable<string> GetAll(string oNamespace) { return null; }
-
-        public bool Contains(string key) { return false; }
-
-        public void Remove(string key, string oSet = null) { }
-
-        public void SetSingleton(object value, string fullName = null) { }
-
-        T ICacheProvider.GetSingleton<T>(string fullName) { return default(T); }
-
+        public virtual string GetState() => $"{OperationalStatus}";
         public void Initialize() { }
+        public string Name { get; } = "No Cache";
+        public string ModelKey(object model) => null;
+        public EOperationalStatus OperationalStatus { get; } = EOperationalStatus.NonOperational;
+        public IEnumerable<string> GetKeys(string oNamespace = null) => null;
 
-        public void RemoveAll(string oSet = null) { }
+        public bool Contains(string key) => false;
 
-        public void Shutdown() { }
+        public void Remove(string key) { }
 
-        public object GetSingleton<T>(string fullName = null) { return default(T); }
-        public Action OnStartup() { return null; }
-        public Action OnShutdown() { return null; }
-        public Action OnMaintenance() { return null; }
+        public void RemoveAll() { }
+
+        public void Set(object model, string fullKey = null, CacheOptions options = null) { }
+
+        public T Get<T>(string fullKey) => default;
+
+        public void SetNative(string key, string serializedModel, CacheOptions options = null) { }
+
+        public string GetNative(string key) => null;
     }
 }

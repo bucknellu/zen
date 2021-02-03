@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using Zen.Base.Common;
 using Zen.Base.Extension;
 
 namespace Zen.Base.Module.Cache
@@ -8,25 +9,22 @@ namespace Zen.Base.Module.Cache
     {
         public static T FetchModel<T>(string key)
         {
-            if (Current.Cache.OperationalStatus != EOperationalStatus.Operational) return default(T);
-            var serializedModel = Current.Cache[typeof(T).CacheKey(key)];
-            return serializedModel == null ? default(T) : serializedModel.FromJson<T>();
+            if (Current.Cache.OperationalStatus != EOperationalStatus.Operational) return default;
+            var serializedModel = Current.Cache.Get<T>(typeof(T).CacheKey(key));
+            return serializedModel == null ? default : serializedModel;
         }
 
-        public static List<T> FetchSet<T>(Func<string, List<T>> method, string key) { return FetchSet(method, key, 600); }
-
-        public static List<T> FetchSet<T>(Func<string, List<T>> method, string key, int cacheTimeOutSeconds)
+        public static List<T> FetchSet<T>(Func<string, List<T>> method, string key)
         {
             if (Current.Cache.OperationalStatus != EOperationalStatus.Operational) return method(key);
 
             var cacheKey = typeof(T).CacheKey(key);
-
-            var cacheModel = Current.Cache[cacheKey].FromJson<List<T>>();
-            if (cacheModel!= null) return cacheModel;
+            var cacheModel = Current.Cache.Get<List<T>>(cacheKey);
+            if (cacheModel != null) return cacheModel;
 
             cacheModel = method(key);
 
-            Current.Cache[cacheKey, null, cacheTimeOutSeconds] = cacheModel.ToJson();
+            Current.Cache.Set(cacheModel, cacheKey);
 
             return cacheModel;
         }
@@ -37,42 +35,49 @@ namespace Zen.Base.Module.Cache
             Current.Cache.Remove(typeof(T).CacheKey(key));
         }
 
-        public static T FetchModel<T>(Func<string, T> method, string key, string baseType = null, int cacheTimeOutSeconds = 600)
+        public static T FetchModel<T>(Func<string, T> method, string key, string baseType = null)
         {
             if (Current.Cache.OperationalStatus != EOperationalStatus.Operational) return method(key);
 
             var cacheKey = typeof(T).CacheKey(key, baseType);
 
-            var cacheModel = Current.Cache[cacheKey].FromJson<T>();
+            var cacheModel = Current.Cache.Get<T>(cacheKey);
 
-            if (cacheModel!= null) return cacheModel;
+            if (cacheModel != null) return cacheModel;
 
             cacheModel = method(key);
 
-            Current.Cache[cacheKey, null, cacheTimeOutSeconds] = cacheModel.ToJson();
+            Current.Cache.Set(cacheModel, cacheKey);
 
             return cacheModel;
         }
-        public static T FetchModel<T, TU>(Func<TU, T> method, TU parameter, string key, string baseType = null, int cacheTimeOutSeconds = 600)
+
+        public static T FetchModel<T, TU>(Func<TU, T> method, TU parameter, string key, string baseType = null)
         {
             if (Current.Cache.OperationalStatus != EOperationalStatus.Operational) return method(parameter);
 
             var cacheKey = typeof(T).CacheKey(key, baseType);
 
-            var cacheModel = Current.Cache[cacheKey].FromJson<T>();
+            var cacheModel = Current.Cache.Get<T>(cacheKey);
 
-            if (cacheModel!= null) return cacheModel;
+            if (cacheModel != null) return cacheModel;
 
             cacheModel = method(parameter);
 
-            Current.Cache[cacheKey, null, cacheTimeOutSeconds] = cacheModel.ToJson();
+            Current.Cache.Set(cacheModel, cacheKey);
 
             return cacheModel;
         }
 
-        public static void StoreModel<T>(string key, T model) { Current.Cache[typeof(T).CacheKey(key)] = model.ToJson(); }
+        public static void StoreModel<T>(string key, T model)
+        {
+            Current.Cache.Set(model, typeof(T).CacheKey(key));
+        }
 
-        public static void FlushModel<T>() { FlushModel<T>("s"); }
+        public static void FlushModel<T>()
+        {
+            FlushModel<T>("s");
+        }
 
         public static void FlushModel<T>(string key, string fullNameAlias = null)
         {
@@ -107,9 +112,13 @@ namespace Zen.Base.Module.Cache
                             throw new ArgumentOutOfRangeException("Invalid cache source - list contains primitive type. Specify nameSpace.");
                         else
                             cacheKey = typeof(T).GetGenericArguments()[0].CacheKey("s");
-                } catch { }
+                }
+                catch { }
             }
-            else { cacheKey = nameSpace + ":s"; }
+            else
+            {
+                cacheKey = nameSpace + ":s";
+            }
 
             Current.Cache.Remove(cacheKey);
         }
@@ -130,22 +139,24 @@ namespace Zen.Base.Module.Cache
                     else
                         cacheKey = typeof(T).GetGenericArguments()[0].CacheKey("s");
             }
-            else { cacheKey = nameSpace + ":s"; }
+            else
+            {
+                cacheKey = nameSpace + ":s";
+            }
 
             if (singletonLock == null) singletonLock = new object();
 
-            var cacheModel = Current.Cache[cacheKey].FromJson<T>();
-            if (cacheModel!= null) return cacheModel;
+            var cacheModel = Current.Cache.Get<T>(cacheKey);
+            if (cacheModel != null) return cacheModel;
 
             lock (singletonLock)
             {
-                cacheModel = Current.Cache[cacheKey].FromJson<T>();
-                if (cacheModel!= null) return cacheModel;
+                cacheModel = Current.Cache.Get<T>(cacheKey);
+                if (cacheModel != null) return cacheModel;
 
                 var ret = method();
 
-                Current.Cache[cacheKey, null, timeOutSeconds] = ret.ToJson();
-
+                Current.Cache.Set(ret, cacheKey);
                 cacheModel = ret;
             }
 
